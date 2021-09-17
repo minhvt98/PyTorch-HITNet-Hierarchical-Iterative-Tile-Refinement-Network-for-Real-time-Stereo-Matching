@@ -51,6 +51,8 @@ parser.add_argument('--seed', type=int, default=1, metavar='S', help='random see
 parser.add_argument('--summary_freq', type=int, default=20, help='the frequency of saving summary')
 parser.add_argument('--save_freq', type=int, default=1, help='the frequency of saving checkpoint')
 
+parser.add_argument('--test_only', action='store_true')
+
 # parse arguments, set seeds
 args = parser.parse_args()
 torch.manual_seed(args.seed)
@@ -188,6 +190,38 @@ def train():
         log.write('min_EPE: {}/{}; min_D1: {}/{}'.format(min_EPE, minEPE_epoch, min_D1, minD1_epoch))
 
 
+def test():
+    min_EPE = args.maxdisp
+    min_D1 = 1
+    min_Thres3 = 1
+    for epoch_idx in range(start_epoch, args.epochs):
+
+        # testing
+        avg_test_scalars = AverageMeterDict()
+        for batch_idx, sample in enumerate(TestImgLoader):
+            # if batch_idx == 2:
+            #     break
+            global_step = len(TestImgLoader) * epoch_idx + batch_idx
+            start_time = time.time()
+            do_summary = True
+            loss, scalar_outputs, image_outputs = test_sample(sample, compute_metrics=do_summary)
+            if do_summary:
+                save_scalars(logger, 'test', scalar_outputs, global_step)
+                save_images(logger, 'test', image_outputs, global_step)
+            avg_test_scalars.update(scalar_outputs)
+            del scalar_outputs, image_outputs
+            print('Epoch {}/{}, Iter {}/{}, test loss = {}, time = {:3f}'.format(epoch_idx, args.epochs,
+                                                                                 batch_idx,
+                                                                                 len(TestImgLoader), loss,
+                                                                                 time.time() - start_time))
+            with open(logfilename, 'a') as log:
+                log.write('Epoch {}/{}, Iter {}/{}, test loss = {}, time = {:.3f}\n'.format(epoch_idx, args.epochs,
+                                                                                            batch_idx,
+                                                                                            len(TestImgLoader),
+                                                                                            loss,
+                                                                                            time.time() - start_time))
+
+
 # train one sample
 def train_sample(sample, compute_metrics=False):
     model.train()
@@ -260,4 +294,7 @@ def test_sample(sample, compute_metrics=True):
 
 
 if __name__ == '__main__':
-    train()
+    if args.test_only:
+        test()
+    else:
+        train()
